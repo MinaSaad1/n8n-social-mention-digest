@@ -1,0 +1,507 @@
+{
+  "name": "NTF 09 - Social Mention Digest",
+  "tags": [
+    {
+      "name": "NTF-Playbook"
+    }
+  ],
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "id": "sticky-readme",
+      "name": "README",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -520
+      ],
+      "parameters": {
+        "content": "## NTF 09 - Social Mention Digest\n\n**Trigger:** Schedule, daily at 07:00\n\n**Flow:**\n1. Schedule fires every morning\n2. SerpAPI searches for brand mentions: general web, Reddit, news\n3. Claude classifies each result by sentiment and relevance\n4. Assembles a digest: positive, neutral, negative sections\n5. Sends digest to email and/or Slack\n\n**Setup:**\n- Add SerpAPI key (free tier: 100 searches/month)\n- Set BRAND_NAMES and KEYWORDS arrays in Config node\n- Connect Gmail for email digest OR set Slack channel\n- Digest arrives every morning before you start work",
+        "height": 360,
+        "width": 540,
+        "color": 6
+      }
+    },
+    {
+      "id": "schedule-trigger",
+      "name": "Daily at 07:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "config",
+      "name": "Config - Search Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "brand_name",
+              "name": "brand_name",
+              "value": "YOUR_BRAND_NAME",
+              "type": "string"
+            },
+            {
+              "id": "keywords",
+              "name": "keywords",
+              "value": "=[\"YOUR_BRAND_NAME\", \"YOUR_PRODUCT_NAME\"]",
+              "type": "expression"
+            },
+            {
+              "id": "serp_api_key",
+              "name": "serp_api_key",
+              "value": "YOUR_SERPAPI_KEY",
+              "type": "string"
+            },
+            {
+              "id": "digest_email",
+              "name": "digest_email",
+              "value": "YOUR_EMAIL",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "search-web",
+      "name": "SerpAPI - Web Mentions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        -160
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://serpapi.com/search",
+        "qs": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.brand_name }}"
+            },
+            {
+              "name": "api_key",
+              "value": "={{ $json.serp_api_key }}"
+            },
+            {
+              "name": "num",
+              "value": "10"
+            },
+            {
+              "name": "tbs",
+              "value": "qdr:d"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "search-reddit",
+      "name": "SerpAPI - Reddit Mentions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://serpapi.com/search",
+        "qs": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $('Config - Search Settings').item.json.brand_name + ' site:reddit.com' }}"
+            },
+            {
+              "name": "api_key",
+              "value": "={{ $('Config - Search Settings').item.json.serp_api_key }}"
+            },
+            {
+              "name": "num",
+              "value": "5"
+            },
+            {
+              "name": "tbs",
+              "value": "qdr:d"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "search-news",
+      "name": "SerpAPI - News Mentions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        160
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://serpapi.com/search",
+        "qs": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $('Config - Search Settings').item.json.brand_name }}"
+            },
+            {
+              "name": "api_key",
+              "value": "={{ $('Config - Search Settings').item.json.serp_api_key }}"
+            },
+            {
+              "name": "tbm",
+              "value": "nws"
+            },
+            {
+              "name": "num",
+              "value": "5"
+            },
+            {
+              "name": "tbs",
+              "value": "qdr:d"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "compile-results",
+      "name": "Compile All Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const web = $('SerpAPI - Web Mentions').first().json.organic_results || [];\nconst reddit = $('SerpAPI - Reddit Mentions').first().json.organic_results || [];\nconst news = $('SerpAPI - News Mentions').first().json.news_results || [];\nconst all = [\n  ...web.map(r => ({ ...r, type: 'web' })),\n  ...reddit.map(r => ({ ...r, type: 'reddit' })),\n  ...news.map(r => ({ ...r, type: 'news' }))\n].map(r => ({ title: r.title || '', snippet: r.snippet || '', link: r.link || '', source: r.displayed_link || '', type: r.type }));\nreturn all.length ? all.map(r => ({ json: r })) : [{ json: { title: 'No mentions found today', snippet: '', link: '', source: '', type: 'none' } }];"
+      }
+    },
+    {
+      "id": "claude-llm",
+      "name": "Claude - Classify Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "model": "claude-haiku-4-5-20251001",
+        "options": {
+          "maxTokens": 300
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "name": "Anthropic"
+        }
+      }
+    },
+    {
+      "id": "classify-chain",
+      "name": "Classify Mention",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "=Classify this search result about a brand.\n\nTitle: {{ $json.title }}\nSnippet: {{ $json.snippet }}\nSource: {{ $json.source }}\nType: {{ $json.type }}\n\nReturn JSON with:\n- sentiment: \"positive\" | \"neutral\" | \"negative\" | \"mixed\" | \"irrelevant\"\n- relevance: \"high\" | \"medium\" | \"low\" (is this actually about the brand?)\n- summary: max 15 words\n\nReturn only valid JSON. No markdown fencing."
+      }
+    },
+    {
+      "id": "parse-classify",
+      "name": "Parse Classification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.text || '{}';\nlet parsed = {};\ntry {\n  parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());\n} catch(e) {\n  parsed = { sentiment: 'neutral', relevance: 'low', summary: '' };\n}\nconst prev = $input.first().json;\nreturn [{ json: { ...prev, ...parsed } }];"
+      }
+    },
+    {
+      "id": "filter-relevant",
+      "name": "Filter Relevant Only",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "rel-check",
+              "leftValue": "={{ $json.relevance }}",
+              "rightValue": "low",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "irr-check",
+              "leftValue": "={{ $json.sentiment }}",
+              "rightValue": "irrelevant",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "aggregate-digest",
+      "name": "Aggregate into Digest",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "mentions",
+        "options": {}
+      }
+    },
+    {
+      "id": "build-digest",
+      "name": "Build Digest Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const mentions = $input.first().json.mentions || [];\nconst today = new Date().toISOString().split('T')[0];\nconst grouped = { positive: [], neutral: [], negative: [], mixed: [] };\nfor (const m of mentions) {\n  const key = m.sentiment || 'neutral';\n  if (grouped[key]) grouped[key].push(m);\n}\nconst formatSection = (label, items) => {\n  if (!items.length) return '';\n  return `${label.toUpperCase()} (${items.length})\\n` + items.map(m => `* ${m.summary || m.title}\\n  ${m.link}`).join('\\n') + '\\n';\n};\nconst digest = `SOCIAL MENTION DIGEST - ${today}\\n` +\n  `Total mentions: ${mentions.length}\\n\\n` +\n  formatSection('Negative', grouped.negative) +\n  formatSection('Mixed', grouped.mixed) +\n  formatSection('Neutral', grouped.neutral) +\n  formatSection('Positive', grouped.positive);\nreturn [{ json: { digest, mention_count: mentions.length, negative_count: grouped.negative.length, date: today } }];"
+      }
+    },
+    {
+      "id": "send-email-digest",
+      "name": "Email Digest",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        -80
+      ],
+      "parameters": {
+        "operation": "send",
+        "sendTo": "={{ $('Config - Search Settings').item.json.digest_email }}",
+        "subject": "=Mention Digest {{ $json.date }} - {{ $json.mention_count }} mentions, {{ $json.negative_count }} negative",
+        "message": "={{ $json.digest }}",
+        "options": {}
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Gmail"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily at 07:00": {
+      "main": [
+        [
+          {
+            "node": "Config - Search Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config - Search Settings": {
+      "main": [
+        [
+          {
+            "node": "SerpAPI - Web Mentions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SerpAPI - Reddit Mentions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SerpAPI - News Mentions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SerpAPI - Web Mentions": {
+      "main": [
+        [
+          {
+            "node": "Compile All Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SerpAPI - Reddit Mentions": {
+      "main": [
+        [
+          {
+            "node": "Compile All Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "SerpAPI - News Mentions": {
+      "main": [
+        [
+          {
+            "node": "Compile All Results",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Compile All Results": {
+      "main": [
+        [
+          {
+            "node": "Classify Mention",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude - Classify Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Classify Mention",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Mention": {
+      "main": [
+        [
+          {
+            "node": "Parse Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Classification": {
+      "main": [
+        [
+          {
+            "node": "Filter Relevant Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Relevant Only": {
+      "main": [
+        [
+          {
+            "node": "Aggregate into Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate into Digest": {
+      "main": [
+        [
+          {
+            "node": "Build Digest Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Digest Text": {
+      "main": [
+        [
+          {
+            "node": "Email Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
