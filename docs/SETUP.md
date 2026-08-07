@@ -138,7 +138,7 @@ The default delivery is Gmail. Most teams are better served by Slack. Both are 5
 
 **How to swap**: delete the `Email Digest` node, add a Slack node, set:
 - Resource: Message
-- Operation: Send  
+- Operation: Send
 - Channel: your private channel (start with a test channel)
 - Text: `={{ $json.digest }}`
 
