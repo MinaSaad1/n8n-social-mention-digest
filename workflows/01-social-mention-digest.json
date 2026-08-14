@@ -1,8 +1,8 @@
 {
-  "name": "NTF 09 - Social Mention Digest",
+  "name": "Social Mention Digest",
   "tags": [
     {
-      "name": "NTF-Playbook"
+      "name": "n8n-ai-agents"
     }
   ],
   "settings": {
@@ -19,7 +19,7 @@
         -520
       ],
       "parameters": {
-        "content": "## NTF 09 - Social Mention Digest\n\n**Trigger:** Schedule, daily at 07:00\n\n**Flow:**\n1. Schedule fires every morning\n2. SerpAPI searches for brand mentions: general web, Reddit, news\n3. Claude classifies each result by sentiment and relevance\n4. Assembles a digest: positive, neutral, negative sections\n5. Sends digest to email and/or Slack\n\n**Setup:**\n- Add SerpAPI key (free tier: 100 searches/month)\n- Set BRAND_NAMES and KEYWORDS arrays in Config node\n- Connect Gmail for email digest OR set Slack channel\n- Digest arrives every morning before you start work",
+        "content": "## Social Mention Digest\n\n**Trigger:** Schedule, daily at 07:00\n\n**Flow:**\n1. Schedule fires every morning\n2. SerpAPI searches for brand mentions: general web, Reddit, news\n3. Claude classifies each result by sentiment and relevance\n4. Assembles a digest: positive, neutral, negative sections\n5. Sends digest to email and/or Slack\n\n**Setup:**\n- Add SerpAPI key (free tier: 100 searches/month)\n- Set BRAND_NAMES and KEYWORDS arrays in Config node\n- Connect Gmail for email digest OR set Slack channel\n- Digest arrives every morning before you start work",
         "height": 360,
         "width": 540,
         "color": 6
